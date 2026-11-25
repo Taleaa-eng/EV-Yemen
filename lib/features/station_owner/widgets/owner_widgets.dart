@@ -1,4 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/app_shared_components.dart';
+
+export '../../../core/widgets/app_shared_components.dart'
+    show
+        AppButton,
+        AppCard,
+        AppStatusBadge,
+        UnifiedBottomNavBar,
+        UnifiedNavItem;
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -18,7 +27,9 @@ class CustomLabeledTextField extends StatefulWidget {
       this.prefix,
       this.suffix,
       this.maxLines = 1,
-      this.onChanged});
+      this.onChanged,
+      this.textDirection,
+      this.textAlign = TextAlign.right});
   final String label;
   final String? hint, helperText, errorText;
   final TextEditingController? controller;
@@ -27,6 +38,8 @@ class CustomLabeledTextField extends StatefulWidget {
   final Widget? prefix, suffix;
   final int maxLines;
   final ValueChanged<String>? onChanged;
+  final TextDirection? textDirection;
+  final TextAlign textAlign;
   @override
   State<CustomLabeledTextField> createState() => _CustomLabeledTextFieldState();
 }
@@ -87,10 +100,11 @@ class _CustomLabeledTextFieldState extends State<CustomLabeledTextField> {
                       controller: widget.controller,
                       onChanged: widget.onChanged,
                       keyboardType: widget.keyboardType,
+                      textDirection: widget.textDirection,
                       enabled: widget.enabled,
                       obscureText: widget.obscureText,
                       maxLines: widget.obscureText ? 1 : widget.maxLines,
-                      textAlign: TextAlign.right,
+                      textAlign: widget.textAlign,
                       textAlignVertical: TextAlignVertical.center,
                       style: AppTextStyles.body.copyWith(
                         height: 24 / 16,
@@ -306,46 +320,42 @@ class OwnerButton extends StatelessWidget {
   final bool danger;
   final IconData? icon;
   @override
-  Widget build(BuildContext context) => SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: outlined
-          ? OutlinedButton.icon(
-              onPressed: onPressed,
-              icon:
-                  icon == null ? const SizedBox.shrink() : Icon(icon, size: 19),
-              label: Text(label),
-              style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.brand,
-                  side: const BorderSide(color: AppColors.brand),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd)),
-                  textStyle:
-                      AppTextStyles.button.copyWith(color: AppColors.brand)))
-          : FilledButton.icon(
-              onPressed: onPressed,
-              icon:
-                  icon == null ? const SizedBox.shrink() : Icon(icon, size: 19),
-              label: Text(label, style: AppTextStyles.button),
-              style: FilledButton.styleFrom(
-                  backgroundColor: danger ? AppColors.error : AppColors.brand,
-                  shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(AppSpacing.radiusMd)))));
+  Widget build(BuildContext context) => AppButton(
+        label: label,
+        onPressed: onPressed,
+        outlined: outlined,
+        danger: danger,
+        icon: icon,
+      );
 }
 
 class OwnerStickyAction extends StatelessWidget {
-  const OwnerStickyAction({super.key, required this.child});
+  const OwnerStickyAction({
+    super.key,
+    required this.child,
+    this.keyboardAware = false,
+  });
   final Widget child;
+  final bool keyboardAware;
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) {
+    final keyboardInset =
+        keyboardAware ? MediaQuery.viewInsetsOf(context).bottom : 0.0;
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: Container(
         height: 76,
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 14),
         decoration: const BoxDecoration(
-            color: AppColors.white,
-            border: Border(top: BorderSide(color: AppColors.border))),
+          color: AppColors.white,
+          border: Border(top: BorderSide(color: AppColors.border)),
+        ),
         child: child,
-      );
+      ),
+    );
+  }
 }
 
 class OwnerCard extends StatelessWidget {
@@ -356,14 +366,7 @@ class OwnerCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   @override
-  Widget build(BuildContext context) => Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-          border: Border.all(color: AppColors.border)),
-      child: child);
+  Widget build(BuildContext context) => AppCard(child: child, padding: padding);
 }
 
 class SectionTitle extends StatelessWidget {
@@ -391,72 +394,7 @@ class StatusPill extends StatelessWidget {
   final String label;
   final Color tone;
   @override
-  Widget build(BuildContext context) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-          color: tone.withValues(alpha: .10),
-          borderRadius: BorderRadius.circular(AppSpacing.radiusPill)),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11, color: tone, fontWeight: FontWeight.w700)));
-}
-
-class UnifiedBottomNavBar extends StatelessWidget {
-  const UnifiedBottomNavBar(
-      {super.key, required this.index, required this.onTap});
-  final int index;
-  final ValueChanged<int> onTap;
-  static const _items = [
-    ('لوحة التحكم', Icons.home_outlined),
-    ('محطاتي', Icons.bolt_outlined),
-    ('التقييمات', Icons.chat_bubble_outline_rounded),
-    ('حسابي', Icons.person_outline_rounded),
-  ];
-  @override
-  Widget build(BuildContext context) => Container(
-      height: 92,
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-      decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: AppColors.border))),
-      child: Row(children: [
-        for (var i = 0; i < _items.length; i++)
-          Expanded(
-              child: InkWell(
-                  onTap: () => onTap(i),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                  child: Container(
-                      alignment: Alignment.center,
-                      height: 80,
-                      decoration: BoxDecoration(
-                          color:
-                              index == i ? AppColors.mint : Colors.transparent,
-                          borderRadius:
-                              BorderRadius.circular(AppSpacing.radiusMd)),
-                      child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(_items[i].$2,
-                                size: 22,
-                                color: index == i
-                                    ? AppColors.brand
-                                    : AppColors.secondary),
-                            const SizedBox(height: 3),
-                            Text(_items[i].$1,
-                                maxLines: 2,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    height: 1.25,
-                                    fontWeight: index == i
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                    color: index == i
-                                        ? AppColors.brand
-                                        : AppColors.secondary))
-                          ]))))
-      ]));
+  Widget build(BuildContext context) => AppStatusBadge(label, tone: tone);
 }
 
 class OwnerBackAction extends StatelessWidget {
@@ -467,7 +405,10 @@ class OwnerBackAction extends StatelessWidget {
   Widget build(BuildContext context) => IconButton(
         tooltip: 'رجوع',
         onPressed: onPressed,
-        icon: const Icon(Icons.arrow_back_rounded),
+        icon: const Directionality(
+          textDirection: TextDirection.ltr,
+          child: Icon(Icons.arrow_back_rounded),
+        ),
       );
 }
 

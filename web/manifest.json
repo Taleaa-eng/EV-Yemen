@@ -1,11 +1,11 @@
 {
-    "name": "ev_yemen",
-    "short_name": "ev_yemen",
+    "name": "EV Yemen",
+    "short_name": "EV Yemen",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "EV Yemen electric vehicle services.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

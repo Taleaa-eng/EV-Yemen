@@ -54,7 +54,10 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                 const SizedBox(height: 12),
               ],
               const SizedBox(height: 4),
-              const SectionTitle('التقييمات حسب المحطة'),
+              const Directionality(
+                textDirection: TextDirection.rtl,
+                child: SectionTitle('التقييمات حسب المحطة'),
+              ),
               const SizedBox(height: 8),
               if (stations.isEmpty)
                 const OwnerCard(
@@ -159,9 +162,6 @@ class _StationReviewLink extends StatelessWidget {
           child: OwnerCard(
             child: Row(
               children: [
-                const Icon(Icons.chevron_left_rounded,
-                    color: AppColors.secondary),
-                const Spacer(),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -176,6 +176,9 @@ class _StationReviewLink extends StatelessWidget {
                     ],
                   ),
                 ),
+                const Spacer(),
+                const Icon(Icons.chevron_left_rounded,
+                    color: AppColors.secondary),
               ],
             ),
           ),

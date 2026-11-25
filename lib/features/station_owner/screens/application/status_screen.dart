@@ -34,7 +34,15 @@ class StatusScreen extends StatelessWidget {
             ? 'أهلاً بك في EV YEMEN. أضف محطاتك وابدأ بإدارة خدمات الشحن.'
             : 'وصل طلب ${profile?.establishment.isNotEmpty == true ? profile!.establishment : 'صاحب المحطة'}. سنرسل إشعاراً عند اكتمال المراجعة.';
     return Scaffold(
-      appBar: AppBar(centerTitle: true, title: Text(appBarTitle)),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        centerTitle: true,
+        title: Text(appBarTitle),
+        actions: [
+          if (Navigator.of(context).canPop())
+            OwnerBackAction(onPressed: () => Navigator.pop(context)),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         child:

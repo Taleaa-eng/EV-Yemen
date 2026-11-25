@@ -7,6 +7,7 @@ import '../../models/owner_profile.dart';
 import '../../services/station_owner_local_store.dart';
 import '../application/status_screen.dart';
 import 'review_submit_screen.dart';
+import '../../../service_provider/provider_map_picker.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key, this.initialStep = 0, this.store});
@@ -25,6 +26,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       widget.store ?? StationOwnerLocalStore.instance;
   final controllers = List.generate(10, (_) => TextEditingController());
   final files = List<PlatformFile?>.filled(4, null);
+  ProviderMapPoint? location;
   @override
   void initState() {
     super.initState();
@@ -43,6 +45,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Widget build(BuildContext context) {
     final titles = ['البيانات الشخصية', 'بيانات المنشأة', 'الوثائق'];
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         centerTitle: true,
@@ -106,6 +109,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     _field('العنوان', 'شارع المطار، خور مكسر', 8),
                     const SizedBox(height: 12),
                     _field('رقم السجل التجاري', 'سجل تجاري ساري', 9),
+                    const SizedBox(height: 12),
+                    _locationField(),
                   ] else ...[
                     for (var i = 0; i < 4; i++) ...[
                       DocumentUploadTile(
@@ -129,6 +134,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             ),
           ),
           OwnerStickyAction(
+            keyboardAware: true,
             child: OwnerButton(
               label: step == 2 ? 'متابعة' : 'التالي',
               onPressed: submitting
@@ -140,7 +146,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           : step == 0
                               ? controllers[0].text.isNotEmpty &&
                                   controllers[1].text.isNotEmpty &&
-                                  controllers[3].text.length >= 6
+                                  controllers[3].text.length >= 6 &&
+                                  location != null
                               : controllers[5].text.isNotEmpty &&
                                   controllers[7].text.isNotEmpty &&
                                   controllers[9].text.isNotEmpty;
@@ -194,6 +201,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       city: controllers[7].text.trim(),
       address: controllers[8].text.trim(),
       registrationNumber: controllers[9].text.trim(),
+      latitude: location?.latitude,
+      longitude: location?.longitude,
     );
     final created = await store.register(
       profile: profile,
@@ -215,6 +224,48 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       ),
       (route) => false,
     );
+  }
+
+  Widget _locationField() => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+              color: showErrors && location == null
+                  ? Colors.red
+                  : const Color(0xFFDCE4DC)),
+        ),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const Text('تحديد الموقع على الخريطة',
+              textAlign: TextAlign.right, style: AppTextStyles.label),
+          const SizedBox(height: 4),
+          Text(
+              location == null ? 'حدد موقع محطة الشحن' : 'تم تحديد موقع المحطة',
+              textAlign: TextAlign.right,
+              style: AppTextStyles.caption),
+          if (location != null)
+            Directionality(
+                textDirection: TextDirection.ltr,
+                child: Text(
+                    '${location!.latitude.toStringAsFixed(5)}, ${location!.longitude.toStringAsFixed(5)}',
+                    textAlign: TextAlign.left)),
+          OwnerButton(
+            label: location == null ? 'فتح محدد الخريطة' : 'تعديل الموقع',
+            outlined: true,
+            icon: Icons.map_outlined,
+            onPressed: _pickLocation,
+          ),
+        ]),
+      );
+
+  Future<void> _pickLocation() async {
+    final point = await Navigator.push<ProviderMapPoint>(
+        context,
+        MaterialPageRoute(
+            builder: (_) => ProviderMapPicker(initial: location)));
+    if (point != null) setState(() => location = point);
   }
 
   Future<void> _pickDocument(int index) async {

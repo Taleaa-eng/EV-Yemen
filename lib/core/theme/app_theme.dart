@@ -13,11 +13,19 @@ abstract final class AppTheme {
             error: AppColors.error),
         fontFamily: AppTextStyles.family,
         appBarTheme: const AppBarTheme(
-            backgroundColor: AppColors.canvas,
+            backgroundColor: AppColors.surface,
             foregroundColor: AppColors.ink,
-            elevation: 0,
+            toolbarHeight: 56,
+            elevation: 1,
+            scrolledUnderElevation: 0,
+            shadowColor: Color(0x1F0A240C),
             centerTitle: false,
-            titleTextStyle: AppTextStyles.heading),
+            titleTextStyle: AppTextStyles.heading,
+            shape: BeveledRectangleBorder(
+                borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(18),
+                    bottomRight: Radius.circular(18)),
+                side: BorderSide(color: AppColors.border))),
         inputDecorationTheme: InputDecorationTheme(
             filled: true,
             fillColor: AppColors.surface,

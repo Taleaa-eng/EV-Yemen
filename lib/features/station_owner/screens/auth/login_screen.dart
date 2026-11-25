@@ -31,7 +31,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(centerTitle: true, title: const Text('تسجيل الدخول')),
+        resizeToAvoidBottomInset: true,
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          centerTitle: true,
+          title: const Text('تسجيل الدخول'),
+          actions: [OwnerBackAction(onPressed: () => Navigator.pop(context))],
+        ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
           child:
@@ -78,6 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     : submitted && invalidCredentials
                         ? 'بيانات الدخول غير صحيحة'
                         : null),
+            const SizedBox(height: 16),
             OwnerButton(
                 label: 'إنشاء حساب جديد',
                 outlined: true,
@@ -91,39 +98,37 @@ class _LoginScreenState extends State<LoginScreen> {
           ]),
         ),
         bottomNavigationBar: OwnerStickyAction(
-            child: OwnerButton(
-                label: busy ? 'جارٍ التحقق...' : 'تسجيل الدخول',
-                onPressed: busy
-                    ? null
-                    : () async {
-                        setState(() {
-                          submitted = true;
-                          invalidCredentials = false;
-                        });
-                        if (email.text.trim().isEmpty ||
-                            password.text.isEmpty) {
-                          return;
-                        }
-                        setState(() => busy = true);
-                        final success =
-                            await store.login(email.text, password.text);
-                        if (!context.mounted) return;
-                        setState(() => busy = false);
-                        if (success) {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => OwnerHome(store: store)),
-                            (route) => false,
-                          );
-                        } else {
-                          setState(() {
-                            submitted = true;
-                            invalidCredentials = true;
-                          });
-                        }
-                      })),
+          keyboardAware: true,
+          child: OwnerButton(
+            label: busy ? 'جارٍ التحقق...' : 'تسجيل الدخول',
+            onPressed: busy ? null : _login,
+          ),
+        ),
       );
+
+  Future<void> _login() async {
+    setState(() {
+      submitted = true;
+      invalidCredentials = false;
+    });
+    if (email.text.trim().isEmpty || password.text.isEmpty) return;
+    setState(() => busy = true);
+    final success = await store.login(email.text, password.text);
+    if (!mounted) return;
+    setState(() => busy = false);
+    if (success) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => OwnerHome(store: store)),
+        (route) => false,
+      );
+    } else {
+      setState(() {
+        submitted = true;
+        invalidCredentials = true;
+      });
+    }
+  }
 }
 
 void _showStatusChoice(BuildContext context) {
