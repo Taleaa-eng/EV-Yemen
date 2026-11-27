@@ -1,10 +1,15 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/models/business_document.dart';
+import '../../../core/services/business_approval_store.dart';
+import '../../../core/services/business_document_picker.dart';
+import '../../../core/services/auth_validators.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/widgets/business_approval_screen.dart';
+import '../../../core/widgets/business_document_tile.dart';
+import '../../../core/widgets/store_image_picker.dart';
 import '../../station_owner/widgets/owner_widgets.dart';
 import '../provider_local_store.dart';
-import '../provider_app.dart';
 import '../provider_map_picker.dart';
 
 class ProviderSignupScreen extends StatefulWidget {
@@ -29,11 +34,18 @@ class _ProviderSignupScreenState extends State<ProviderSignupScreen> {
     ])
       key: TextEditingController()
   };
-  final files = List<PlatformFile?>.filled(3, null);
+  static const requiredDocuments = <String, String>{
+    'identity': 'الهوية الشخصية',
+    'commercial_register': 'السجل التجاري',
+    'activity_license': 'ترخيص مزاولة النشاط',
+    'premises_proof': 'إثبات ملكية / إيجار الموقع',
+  };
+  final Map<String, BusinessDocument> documents = {};
   final store = ProviderLocalStore.instance;
   bool errors = false;
   bool submitting = false;
   bool locationSelected = false;
+  String? storeImagePath;
   double latitude = 15.3694, longitude = 44.1910;
   @override
   void dispose() {
@@ -83,22 +95,31 @@ class _ProviderSignupScreenState extends State<ProviderSignupScreen> {
             const SizedBox(height: 8),
             _locationCard(),
             const SizedBox(height: 18),
+            StoreImagePicker(
+              onChanged: (path) => setState(() => storeImagePath = path),
+              error: errors && storeImagePath == null,
+            ),
+            const SizedBox(height: 18),
             const Text('رفع الوثائق',
                 textAlign: TextAlign.right, style: AppTextStyles.h2),
             const SizedBox(height: 8),
-            for (var i = 0; i < files.length; i++)
-              Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: DocumentUploadTile(
-                      title: [
-                        'الهوية الشخصية',
-                        'السجل التجاري',
-                        'ترخيص مزاولة النشاط'
-                      ][i],
-                      fileName: files[i]?.name,
-                      error: errors && files[i] == null,
-                      onTap: () => _pickFile(i),
-                      onRemove: () => setState(() => files[i] = null))),
+            for (final entry in requiredDocuments.entries) ...[
+              BusinessDocumentTile(
+                title: entry.value,
+                instruction: switch (entry.key) {
+                  'identity' => 'ارفع صورة واضحة وسارية لهوية مالك النشاط.',
+                  'commercial_register' =>
+                    'أرفق السجل التجاري المطابق لبيانات المنشأة.',
+                  'activity_license' => 'أرفق ترخيص النشاط أو ما يثبت مزاولته.',
+                  _ => 'أرفق عقد ملكية أو إيجار موقع الورشة أو المتجر.',
+                },
+                document: documents[entry.key],
+                error: errors && !documents.containsKey(entry.key),
+                onPick: () => _pickDocument(entry.key),
+                onRemove: () => setState(() => documents.remove(entry.key)),
+              ),
+              const SizedBox(height: 10),
+            ],
             const SizedBox(height: 20)
           ])),
       bottomNavigationBar: OwnerStickyAction(
@@ -117,19 +138,45 @@ class _ProviderSignupScreenState extends State<ProviderSignupScreen> {
           child: Directionality(
               textDirection:
                   key == 'phone' ? TextDirection.ltr : TextDirection.rtl,
-              child: CustomLabeledTextField(
-                  label: label,
-                  hint: hint ?? (key == 'phone' ? '+967 7XX XXX XXX' : null),
-                  controller: fields[key],
-                  keyboardType: keyboard,
-                  textDirection: key == 'phone' ? TextDirection.ltr : null,
-                  textAlign: key == 'phone' ? TextAlign.left : TextAlign.right,
-                  obscureText: obscure,
-                  errorText:
-                      errors && required && fields[key]!.text.trim().isEmpty
-                          ? 'هذا الحقل مطلوب'
-                          : null,
-                  onChanged: (_) => setState(() {}))));
+              child: obscure
+                  ? OwnerPasswordField(
+                      label: label,
+                      hint: hint,
+                      controller: fields[key],
+                      errorText: errors &&
+                              key == 'phone' &&
+                              !isValidYemenPhone(fields[key]!.text)
+                          ? 'أدخل رقم هاتف يمني صالحاً'
+                          : errors &&
+                                  key == 'password' &&
+                                  !isValidPassword(fields[key]!.text)
+                              ? 'كلمة المرور يجب أن تتكون من 8 أحرف على الأقل'
+                              : errors &&
+                                      required &&
+                                      fields[key]!.text.trim().isEmpty
+                                  ? 'هذا الحقل مطلوب'
+                                  : null,
+                      onChanged: (_) => setState(() {}),
+                    )
+                  : CustomLabeledTextField(
+                      label: label,
+                      hint:
+                          hint ?? (key == 'phone' ? '+967 7XX XXX XXX' : null),
+                      controller: fields[key],
+                      keyboardType: keyboard,
+                      textDirection: key == 'phone' ? TextDirection.ltr : null,
+                      textAlign:
+                          key == 'phone' ? TextAlign.left : TextAlign.right,
+                      errorText: errors &&
+                              key == 'phone' &&
+                              !isValidYemenPhone(fields[key]!.text)
+                          ? 'أدخل رقم هاتف يمني صالحاً'
+                          : errors &&
+                                  required &&
+                                  fields[key]!.text.trim().isEmpty
+                              ? 'هذا الحقل مطلوب'
+                              : null,
+                      onChanged: (_) => setState(() {}))));
   Widget _locationCard() => AppCard(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -164,39 +211,49 @@ class _ProviderSignupScreenState extends State<ProviderSignupScreen> {
                 initial: locationSelected
                     ? ProviderMapPoint(latitude, longitude)
                     : null)));
-    if (point != null)
+    if (point != null) {
       setState(() {
         latitude = point.latitude;
         longitude = point.longitude;
         locationSelected = true;
       });
+    }
   }
 
-  Future<void> _pickFile(int index) async {
+  Future<void> _pickDocument(String key) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: const ['pdf', 'png', 'jpg', 'jpeg']);
-      if (result != null && result.files.isNotEmpty)
-        setState(() => files[index] = result.files.single);
+      final approvalKey = widget.subtype == 'صاحب قطع غيار'
+          ? 'parts_provider'
+          : 'workshop_owner';
+      final document = await BusinessDocumentPicker.pick(folder: approvalKey);
+      if (document != null && mounted) {
+        setState(() => documents[key] = document);
+      }
+    } on BusinessDocumentPickerException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('تعذّر فتح منتقي الملفات.')));
+      }
     }
   }
 
   Future<void> _submit() async {
     setState(() => errors = true);
     if (fields['name']!.text.trim().isEmpty ||
-        fields['phone']!.text.trim().isEmpty ||
-        fields['password']!.text.length < 6 ||
+        !isValidYemenPhone(fields['phone']!.text) ||
+        !isValidPassword(fields['password']!.text) ||
         fields['business']!.text.trim().isEmpty ||
         fields['city']!.text.trim().isEmpty ||
         fields['address']!.text.trim().isEmpty ||
         fields['registration']!.text.trim().isEmpty ||
         fields['category']!.text.trim().isEmpty ||
-        files.any((file) => file == null) ||
+        requiredDocuments.keys.any((key) => !documents.containsKey(key)) ||
+        storeImagePath == null ||
         !locationSelected) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text(
@@ -207,15 +264,23 @@ class _ProviderSignupScreenState extends State<ProviderSignupScreen> {
     await store.load(widget.subtype);
     await store.saveProfile({
       for (final entry in fields.entries)
-        if (entry.key != 'password') entry.key: entry.value.text.trim()
+        if (entry.key != 'password') entry.key: entry.value.text.trim(),
+      'storeImagePath': storeImagePath!,
     });
+    await store.saveDocuments(documents);
+    await store.saveCredentials(
+        phone: fields['phone']!.text, password: fields['password']!.text);
     await store.setLocation(latitude, longitude);
     await store.setAvailable(true);
+    final approvalKey =
+        widget.subtype == 'صاحب قطع غيار' ? 'parts_provider' : 'workshop_owner';
+    await BusinessApprovalStore.instance.submitForReview(approvalKey);
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute<void>(
-            builder: (_) => ProviderApp(subtype: widget.subtype)),
-        (route) => false);
+            builder: (_) => BusinessApprovalScreen(
+                businessKey: approvalKey, businessTitle: widget.subtype)),
+        (route) => route.isFirst);
   }
 }

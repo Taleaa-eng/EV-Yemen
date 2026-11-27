@@ -5,6 +5,8 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/models/business_document.dart';
+import '../../../core/services/auth_validators.dart';
 import '../models/owner_account.dart';
 import '../models/owner_notification_settings.dart';
 import '../models/owner_profile.dart';
@@ -63,12 +65,14 @@ class StationOwnerLocalStore extends ChangeNotifier {
   Future<bool> register({
     required OwnerProfile profile,
     required String password,
+    required Map<String, BusinessDocument> documents,
   }) async {
     final email = profile.email.trim().toLowerCase();
     final phone = profile.phone.trim();
+    if (!isValidYemenPhone(phone) || !isValidPassword(password)) return false;
     final duplicate = _accounts.any((account) =>
         (email.isNotEmpty && account.email.toLowerCase() == email) ||
-        account.phone == phone);
+        normalizeYemenPhone(account.phone) == normalizeYemenPhone(phone));
     if (duplicate) return false;
 
     final random = Random.secure();
@@ -83,6 +87,8 @@ class StationOwnerLocalStore extends ChangeNotifier {
       passwordSalt: salt,
       passwordHash: _hashPassword(password, salt),
       profile: profile.copyWith(email: email),
+      documents: Map.of(documents),
+      approved: false,
     );
     _accounts = [..._accounts, account];
     currentAccount = account;
@@ -99,10 +105,15 @@ class StationOwnerLocalStore extends ChangeNotifier {
 
   Future<bool> login(String identifier, String password) async {
     final normalized = identifier.trim().toLowerCase();
+    if ((!isValidEmail(normalized) && !isValidYemenPhone(identifier)) ||
+        !isValidPassword(password)) {
+      return false;
+    }
     OwnerAccount? match;
     for (final account in _accounts) {
       if (account.email.toLowerCase() == normalized ||
-          account.phone == identifier.trim()) {
+          normalizeYemenPhone(account.phone) ==
+              normalizeYemenPhone(identifier)) {
         match = account;
         break;
       }
@@ -178,6 +189,25 @@ class StationOwnerLocalStore extends ChangeNotifier {
       for (final item in _accounts)
         if (item.id == account.id) currentAccount! else item,
     ];
+    await _saveAccounts();
+    notifyListeners();
+  }
+
+  Future<void> setAccountApproval(String accountId, bool approved) async {
+    OwnerAccount? account;
+    for (final item in _accounts) {
+      if (item.id == accountId) {
+        account = item;
+        break;
+      }
+    }
+    if (account == null) return;
+    final updated = account.copyWith(approved: approved);
+    _accounts = [
+      for (final item in _accounts)
+        if (item.id == accountId) updated else item,
+    ];
+    if (currentAccount?.id == accountId) currentAccount = updated;
     await _saveAccounts();
     notifyListeners();
   }

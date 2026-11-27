@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/business_branches_screen.dart';
 
 import '../../../../core/theme/app_text_styles.dart';
 import '../../models/owner_station.dart';
@@ -39,6 +40,21 @@ class StationsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           OwnerButton(label: 'إضافة محطة جديدة', onPressed: onAdd),
+          const SizedBox(height: 8),
+          OwnerButton(
+            label: 'إضافة وإدارة الفروع',
+            outlined: true,
+            icon: Icons.store_mall_directory_outlined,
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => const BusinessBranchesScreen(
+                  businessKey: 'station_owner',
+                  title: 'صاحب محطة',
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 14),
           if (store.stations.isEmpty)
             const OwnerCard(

@@ -1,14 +1,27 @@
 import 'package:flutter/material.dart';
 
+import '../../core/services/active_role_session.dart';
+import '../../core/services/auth_validators.dart';
+import '../../core/services/business_approval_store.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_shared_components.dart';
+import '../../core/widgets/business_approval_screen.dart';
 import '../service_provider/auth/provider_signup_screen.dart';
+import '../service_provider/provider_local_store.dart';
 import '../spare_parts_provider/spare_parts_provider_app.dart';
 import '../workshop_owner/workshop_owner_app.dart';
 import '../station_owner/screens/auth/login_screen.dart';
 import '../station_owner/widgets/owner_widgets.dart'
-    show CustomLabeledTextField, OwnerBackAction, OwnerStickyAction;
+    show
+        CustomLabeledTextField,
+        OwnerBackAction,
+        OwnerPasswordField,
+        OwnerStickyAction;
+import '../customer/customer_screens.dart';
+import '../car_dealer/dealer_app.dart';
+import '../car_dealer/dealer_local_store.dart';
+import '../car_dealer/dealer_signup_screen.dart';
 
 enum AccountType { customer, carDealer, serviceProvider, stationOwner }
 
@@ -78,13 +91,26 @@ class _AccountTypeSelectionScreenState
       if (providerSubtype == null || !mounted) return;
     }
 
-    Navigator.of(context).push(MaterialPageRoute<void>(
+    final activeRole = switch (selected) {
+      AccountType.customer => ActiveUserRole.customer,
+      AccountType.carDealer => ActiveUserRole.carDealer,
+      AccountType.serviceProvider => providerSubtype == 'صاحب قطع غيار'
+          ? ActiveUserRole.sparePartsProvider
+          : ActiveUserRole.workshopOwner,
+      AccountType.stationOwner => ActiveUserRole.stationOwner,
+    };
+    await ActiveRoleSessionStore.instance.save(activeRole);
+    if (!mounted) return;
+
+    Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
       builder: (_) => selected == AccountType.stationOwner
           ? const LoginScreen()
-          : AccountLoginScreen(
-              accountType: selected,
-              providerSubtype: providerSubtype,
-            ),
+          : selected == AccountType.customer
+              ? const CustomerWelcomeScreen()
+              : AccountLoginScreen(
+                  accountType: selected,
+                  providerSubtype: providerSubtype,
+                ),
     ));
   }
 
@@ -244,11 +270,99 @@ class _SubtypeTile extends StatelessWidget {
       );
 }
 
-class AccountLoginScreen extends StatelessWidget {
+class AccountLoginScreen extends StatefulWidget {
   const AccountLoginScreen(
       {super.key, required this.accountType, this.providerSubtype});
   final AccountType accountType;
   final String? providerSubtype;
+
+  @override
+  State<AccountLoginScreen> createState() => _AccountLoginScreenState();
+}
+
+class _AccountLoginScreenState extends State<AccountLoginScreen> {
+  final _phone = TextEditingController();
+  final _password = TextEditingController();
+  bool _submitted = false;
+  bool _busy = false;
+  bool _invalidCredentials = false;
+
+  @override
+  void dispose() {
+    _phone.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    setState(() {
+      _submitted = true;
+      _invalidCredentials = false;
+    });
+    if (!isValidYemenPhone(_phone.text) || !isValidPassword(_password.text)) {
+      return;
+    }
+    setState(() => _busy = true);
+    var authenticated = false;
+    final subtype = widget.providerSubtype ?? 'صاحب ورشة';
+    if (widget.accountType == AccountType.serviceProvider) {
+      final store = ProviderLocalStore.instance;
+      await store.load(subtype);
+      authenticated = await store.authenticate(
+          phone: _phone.text, password: _password.text);
+    } else if (widget.accountType == AccountType.carDealer) {
+      final store = DealerLocalStore.instance;
+      await store.initialize();
+      authenticated = await store.authenticate(
+          phone: _phone.text, password: _password.text);
+    }
+
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (!authenticated) {
+      setState(() => _invalidCredentials = true);
+      return;
+    }
+
+    final role = widget.accountType == AccountType.carDealer
+        ? ActiveUserRole.carDealer
+        : subtype == 'صاحب قطع غيار'
+            ? ActiveUserRole.sparePartsProvider
+            : ActiveUserRole.workshopOwner;
+    final approvalKey = widget.accountType == AccountType.carDealer
+        ? 'car_dealer'
+        : subtype == 'صاحب قطع غيار'
+            ? 'parts_provider'
+            : 'workshop_owner';
+    final approval =
+        await BusinessApprovalStore.instance.statusFor(approvalKey);
+    if (!mounted) return;
+    if (approval != BusinessApprovalStatus.approved) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => BusinessApprovalScreen(
+            businessKey: approvalKey,
+            businessTitle: widget.accountType == AccountType.carDealer
+                ? 'وكيل السيارات'
+                : subtype,
+          ),
+        ),
+      );
+      return;
+    }
+    await ActiveRoleSessionStore.instance.save(role, authenticated: true);
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => widget.accountType == AccountType.carDealer
+            ? const DealerApp()
+            : subtype == 'صاحب قطع غيار'
+                ? const SparePartsProviderApp()
+                : const WorkshopOwnerApp(),
+      ),
+      (_) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -267,9 +381,9 @@ class AccountLoginScreen extends StatelessWidget {
               Text('مرحباً بعودتك',
                   textAlign: TextAlign.right, style: AppTextStyles.h1),
               Text(
-                providerSubtype == null
-                    ? 'أدخل بيانات حساب ${accountType.label} للمتابعة.'
-                    : 'أدخل بيانات حساب $providerSubtype للمتابعة.',
+                widget.accountType == AccountType.carDealer
+                    ? 'أدخل رقم هاتف وحساب وكيل مسجل للمتابعة.'
+                    : 'أدخل بيانات حساب ${widget.providerSubtype} للمتابعة.',
                 textAlign: TextAlign.right,
                 style: AppTextStyles.body,
               ),
@@ -278,25 +392,46 @@ class AccountLoginScreen extends StatelessWidget {
                 textDirection: TextDirection.ltr,
                 child: CustomLabeledTextField(
                   label: 'رقم الهاتف',
-                  hint: '+967 ...',
-                  helperText: 'أدخل رقم الهاتف المرتبط بحسابك.',
+                  hint: '+967 7XX XXX XXX',
+                  helperText: _submitted && !isValidYemenPhone(_phone.text)
+                      ? 'أدخل رقم هاتف يمني صالحاً.'
+                      : 'أدخل رقم الهاتف المرتبط بحسابك.',
+                  controller: _phone,
+                  onChanged: (_) => setState(() => _invalidCredentials = false),
+                  errorText: _submitted && !isValidYemenPhone(_phone.text)
+                      ? 'رقم الهاتف غير صالح'
+                      : _invalidCredentials
+                          ? 'لا يوجد حساب مسجل بهذه البيانات.'
+                          : null,
                   keyboardType: TextInputType.phone,
                 ),
               ),
               const SizedBox(height: 14),
-              const CustomLabeledTextField(
+              OwnerPasswordField(
                 label: 'كلمة المرور',
                 hint: 'أدخل كلمة المرور',
-                helperText: 'استخدم كلمة مرور حسابك.',
-                obscureText: true,
+                helperText: _submitted && !isValidPassword(_password.text)
+                    ? 'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.'
+                    : 'استخدم كلمة مرور حسابك.',
+                controller: _password,
+                onChanged: (_) => setState(() => _invalidCredentials = false),
+                errorText: _submitted && !isValidPassword(_password.text)
+                    ? 'كلمة المرور غير صالحة'
+                    : _invalidCredentials
+                        ? 'لا يوجد حساب مسجل بهذه البيانات.'
+                        : null,
               ),
               const SizedBox(height: 16),
-              if (accountType == AccountType.serviceProvider)
+              if (widget.accountType == AccountType.serviceProvider ||
+                  widget.accountType == AccountType.carDealer)
                 TextButton(
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => ProviderSignupScreen(
-                          subtype: providerSubtype ?? 'صاحب ورشة'),
+                      builder: (_) => widget.accountType ==
+                              AccountType.carDealer
+                          ? const DealerSignupScreen()
+                          : ProviderSignupScreen(
+                              subtype: widget.providerSubtype ?? 'صاحب ورشة'),
                     ),
                   ),
                   child: const Text('ليس لديك حساب؟ إنشاء حساب جديد'),
@@ -307,16 +442,8 @@ class AccountLoginScreen extends StatelessWidget {
         bottomNavigationBar: OwnerStickyAction(
           keyboardAware: true,
           child: AppButton(
-            label: 'تسجيل الدخول',
-            onPressed: accountType == AccountType.serviceProvider
-                ? () => Navigator.of(context).pushReplacement(
-                      MaterialPageRoute<void>(
-                        builder: (_) => providerSubtype == 'صاحب قطع غيار'
-                            ? const SparePartsProviderApp()
-                            : const WorkshopOwnerApp(),
-                      ),
-                    )
-                : null,
+            label: _busy ? 'جارٍ التحقق...' : 'تسجيل الدخول',
+            onPressed: _busy ? null : _login,
           ),
         ),
       );

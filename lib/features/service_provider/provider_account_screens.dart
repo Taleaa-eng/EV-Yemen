@@ -1,10 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
+import '../../core/services/active_role_session.dart';
+import '../../core/widgets/logout_confirmation_dialog.dart';
+import '../../core/widgets/business_branches_screen.dart';
 import '../../core/theme/app_text_styles.dart';
-import '../../core/widgets/app_shared_components.dart';
 import '../account_selection/account_type_selection_screen.dart';
 import '../station_owner/widgets/owner_widgets.dart';
 import 'provider_local_store.dart';
+import 'provider_documents_screen.dart';
 
 class ProviderProfileScreen extends StatelessWidget {
   const ProviderProfileScreen({super.key, required this.subtype});
@@ -32,8 +37,16 @@ class ProviderProfileTab extends StatelessWidget {
         builder: (context, _) =>
             ListView(padding: const EdgeInsets.all(20), children: [
           Row(children: [
-            const CircleAvatar(
-                radius: 28, child: Icon(Icons.storefront_outlined)),
+            CircleAvatar(
+              radius: 28,
+              backgroundImage: store.profile['storeImagePath'] != null &&
+                      File(store.profile['storeImagePath']!).existsSync()
+                  ? FileImage(File(store.profile['storeImagePath']!))
+                  : null,
+              child: store.profile['storeImagePath'] == null
+                  ? const Icon(Icons.storefront_outlined)
+                  : null,
+            ),
             const SizedBox(width: 12),
             Expanded(
                 child: Column(
@@ -56,6 +69,20 @@ class ProviderProfileTab extends StatelessWidget {
                   value: store.available,
                   onChanged: store.setAvailable)),
           const SizedBox(height: 12),
+          _menu(
+              context,
+              'إدارة الفروع',
+              Icons.store_mall_directory_outlined,
+              () => _push(
+                  context,
+                  BusinessBranchesScreen(
+                    businessKey: subtype == 'صاحب قطع غيار'
+                        ? 'parts_provider'
+                        : 'workshop_owner',
+                    title: subtype,
+                  ))),
+          _menu(context, 'الوثائق والمتطلبات', Icons.description_outlined,
+              () => _push(context, ProviderDocumentsScreen(subtype: subtype))),
           _menu(
               context,
               'تعديل الحساب',
@@ -92,26 +119,16 @@ class ProviderProfileTab extends StatelessWidget {
                   leading: Icon(icon),
                   trailing: const Icon(Icons.chevron_left_rounded))));
   Future<void> _confirmLogout(BuildContext context) async {
-    final confirm = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-                title: const Text('تسجيل الخروج'),
-                content: const Text(
-                    'هل تريد تسجيل الخروج والعودة لاختيار نوع الحساب؟'),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('إلغاء')),
-                  FilledButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('تسجيل الخروج'))
-                ]));
-    if (confirm == true && context.mounted)
+    final confirm = await showLogoutConfirmationDialog(context);
+    if (confirm == true && context.mounted) {
+      await ActiveRoleSessionStore.instance.clear();
+      if (!context.mounted) return;
       Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute<void>(
               builder: (_) => const AccountTypeSelectionScreen()),
           (_) => false);
+    }
   }
 }
 

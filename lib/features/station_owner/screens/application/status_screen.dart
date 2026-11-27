@@ -83,6 +83,36 @@ class StatusScreen extends StatelessWidget {
                   const Text('عادةً تستغرق المراجعة يومي عمل.',
                       textAlign: TextAlign.right, style: AppTextStyles.caption)
                 ])),
+          if (StationOwnerLocalStore
+                  .instance.currentAccount?.documents.isNotEmpty ==
+              true) ...[
+            const SizedBox(height: 14),
+            const Text('الوثائق المقدمة',
+                textAlign: TextAlign.right, style: AppTextStyles.h3),
+            const SizedBox(height: 8),
+            OwnerCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final document in StationOwnerLocalStore
+                      .instance.currentAccount!.documents.values)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(
+                          '${document.name} • ${(document.size / 1024).ceil()} KB',
+                          textAlign: TextAlign.right,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.caption,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
           if (rejected || approved) ...[
             const SizedBox(height: 14),
             OwnerButton(

@@ -1,3 +1,4 @@
+import '../../../core/models/business_document.dart';
 import 'owner_profile.dart';
 
 class OwnerAccount {
@@ -8,6 +9,8 @@ class OwnerAccount {
     required this.passwordSalt,
     required this.passwordHash,
     required this.profile,
+    this.documents = const {},
+    this.approved = false,
   });
 
   final String id;
@@ -16,14 +19,23 @@ class OwnerAccount {
   final String passwordSalt;
   final String passwordHash;
   final OwnerProfile profile;
+  final Map<String, BusinessDocument> documents;
+  final bool approved;
 
-  OwnerAccount copyWith({OwnerProfile? profile}) => OwnerAccount(
+  OwnerAccount copyWith({
+    OwnerProfile? profile,
+    Map<String, BusinessDocument>? documents,
+    bool? approved,
+  }) =>
+      OwnerAccount(
         id: id,
         email: email,
         phone: phone,
         passwordSalt: passwordSalt,
         passwordHash: passwordHash,
         profile: profile ?? this.profile,
+        documents: documents ?? this.documents,
+        approved: approved ?? this.approved,
       );
 
   Map<String, dynamic> toJson() => {
@@ -33,6 +45,9 @@ class OwnerAccount {
         'passwordSalt': passwordSalt,
         'passwordHash': passwordHash,
         'profile': profile.toJson(),
+        'documents':
+            documents.map((key, value) => MapEntry(key, value.toJson())),
+        'approved': approved,
       };
 
   factory OwnerAccount.fromJson(Map<String, dynamic> json) => OwnerAccount(
@@ -43,5 +58,12 @@ class OwnerAccount {
         passwordHash: json['passwordHash'] as String? ?? '',
         profile: OwnerProfile.fromJson(
             json['profile'] as Map<String, dynamic>? ?? const {}),
+        documents: (json['documents'] as Map<String, dynamic>? ?? const {}).map(
+          (key, value) => MapEntry(
+            key,
+            BusinessDocument.fromJson(Map<String, dynamic>.from(value as Map)),
+          ),
+        ),
+        approved: json['approved'] as bool? ?? false,
       );
 }

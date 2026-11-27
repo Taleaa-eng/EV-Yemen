@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
+import '../../../../core/models/business_document.dart';
+import '../../../../core/services/auth_validators.dart';
+import '../../../../core/services/business_document_picker.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/business_document_tile.dart';
+import '../../../../core/widgets/store_image_picker.dart';
 import '../../utils/owner_feedback.dart';
 import '../../widgets/owner_widgets.dart';
 import '../../models/owner_profile.dart';
@@ -22,15 +26,24 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   bool showErrors = false;
   bool submitting = false;
   bool duplicateAccount = false;
+  late final Future<void> _storeReady;
   StationOwnerLocalStore get store =>
       widget.store ?? StationOwnerLocalStore.instance;
   final controllers = List.generate(10, (_) => TextEditingController());
-  final files = List<PlatformFile?>.filled(4, null);
+  static const requiredDocuments = <String, String>{
+    'identity': 'صورة الهوية الشخصية',
+    'commercial_register': 'السجل التجاري',
+    'activity_license': 'ترخيص تشغيل محطة الشحن',
+    'premises_proof': 'إثبات ملكية / إيجار الموقع',
+  };
+  final Map<String, BusinessDocument> documents = {};
   ProviderMapPoint? location;
+  String? storeImagePath;
   @override
   void initState() {
     super.initState();
     step = widget.initialStep;
+    _storeReady = store.initialize();
   }
 
   @override
@@ -70,6 +83,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     style: AppTextStyles.h1,
                     textAlign: TextAlign.right,
                   ),
+                  if (step == 1)
+                    Text('بيانات متجر / محطة ${controllers[5].text}'.trim(),
+                        textAlign: TextAlign.right,
+                        style: AppTextStyles.caption),
                   if (step == 2) ...[
                     const SizedBox(height: 8),
                     const Text('ارفع نسخاً واضحة بصيغة PDF أو PNG أو JPG.',
@@ -111,19 +128,30 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     _field('رقم السجل التجاري', 'سجل تجاري ساري', 9),
                     const SizedBox(height: 12),
                     _locationField(),
+                    const SizedBox(height: 12),
+                    StoreImagePicker(
+                      onChanged: (path) =>
+                          setState(() => storeImagePath = path),
+                      error: showErrors && storeImagePath == null,
+                    ),
                   ] else ...[
-                    for (var i = 0; i < 4; i++) ...[
-                      DocumentUploadTile(
-                        title: [
-                          'صورة الهوية الشخصية',
-                          'السجل التجاري',
-                          'ترخيص مزاولة النشاط',
-                          'إثبات ملكية / إيجار الموقع',
-                        ][i],
-                        fileName: files[i]?.name,
-                        error: showErrors && files[i] == null,
-                        onTap: () => _pickDocument(i),
-                        onRemove: () => setState(() => files[i] = null),
+                    for (final entry in requiredDocuments.entries) ...[
+                      BusinessDocumentTile(
+                        title: entry.value,
+                        instruction: switch (entry.key) {
+                          'identity' =>
+                            'ارفع صورة واضحة وسارية لهوية مالك المحطة.',
+                          'commercial_register' =>
+                            'أرفق السجل التجاري المطابق لبيانات المنشأة.',
+                          'activity_license' =>
+                            'أرفق ترخيص تشغيل محطة شحن المركبات الكهربائية.',
+                          _ => 'أرفق عقد الملكية أو الإيجار للموقع.',
+                        },
+                        document: documents[entry.key],
+                        error: showErrors && !documents.containsKey(entry.key),
+                        onPick: () => _pickDocument(entry.key),
+                        onRemove: () =>
+                            setState(() => documents.remove(entry.key)),
                       ),
                       const SizedBox(height: 12),
                     ],
@@ -142,17 +170,24 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   : () async {
                       setState(() => showErrors = true);
                       final valid = step == 2
-                          ? files.every((f) => f != null)
+                          ? requiredDocuments.keys.every(documents.containsKey)
                           : step == 0
-                              ? controllers[0].text.isNotEmpty &&
-                                  controllers[1].text.isNotEmpty &&
-                                  controllers[3].text.length >= 6 &&
-                                  location != null
-                              : controllers[5].text.isNotEmpty &&
-                                  controllers[7].text.isNotEmpty &&
-                                  controllers[9].text.isNotEmpty;
+                              ? controllers[0].text.trim().isNotEmpty &&
+                                  isValidYemenPhone(controllers[1].text) &&
+                                  isValidPassword(controllers[3].text)
+                              : controllers[5].text.trim().isNotEmpty &&
+                                  controllers[6].text.trim().isNotEmpty &&
+                                  controllers[7].text.trim().isNotEmpty &&
+                                  controllers[8].text.trim().isNotEmpty &&
+                                  controllers[9].text.trim().isNotEmpty &&
+                                  location != null &&
+                                  storeImagePath != null;
                       if (!valid) {
-                        if (step == 2 && files.any((f) => f == null)) return;
+                        if (step == 2 &&
+                            requiredDocuments.keys
+                                .any((key) => !documents.containsKey(key))) {
+                          return;
+                        }
                         if (step != 2) {
                           showOwnerMessage(
                               context, 'يرجى إكمال الحقول المطلوبة بشكل صحيح');
@@ -173,8 +208,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                               phone: controllers[1].text.trim(),
                               establishment: controllers[5].text.trim(),
                               city: controllers[7].text.trim(),
-                              documentCount:
-                                  files.whereType<PlatformFile>().length,
+                              documentCount: documents.length,
                               onSubmit: _createAccount,
                             ),
                           ),
@@ -193,6 +227,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       submitting = true;
       duplicateAccount = false;
     });
+    await _storeReady;
+    if (!mounted) return;
     final profile = OwnerProfile(
       fullName: controllers[0].text.trim(),
       phone: controllers[1].text.trim(),
@@ -203,10 +239,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       registrationNumber: controllers[9].text.trim(),
       latitude: location?.latitude,
       longitude: location?.longitude,
+      storeImagePath: storeImagePath,
     );
     final created = await store.register(
       profile: profile,
       password: controllers[3].text,
+      documents: documents,
     );
     if (!mounted) return;
     setState(() {
@@ -268,14 +306,15 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     if (point != null) setState(() => location = point);
   }
 
-  Future<void> _pickDocument(int index) async {
+  Future<void> _pickDocument(String key) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['pdf', 'png', 'jpg', 'jpeg'],
-      );
-      if (!mounted || result == null || result.files.isEmpty) return;
-      setState(() => files[index] = result.files.single);
+      final document =
+          await BusinessDocumentPicker.pick(folder: 'station_owner');
+      if (mounted && document != null) {
+        setState(() => documents[key] = document);
+      }
+    } on BusinessDocumentPickerException catch (error) {
+      if (mounted) showOwnerMessage(context, error.message);
     } catch (_) {
       if (mounted) {
         showOwnerMessage(context, 'تعذّر فتح منتقي الملفات. حاول مرة أخرى.');
@@ -289,23 +328,45 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     int index, {
     TextInputType? type,
     bool obscure = false,
-  }) =>
-      CustomLabeledTextField(
+  }) {
+    final errorText = showErrors &&
+            index == 1 &&
+            !isValidYemenPhone(controllers[index].text)
+        ? 'أدخل رقم هاتف يمني صالحاً'
+        : showErrors && index == 3 && !isValidPassword(controllers[index].text)
+            ? 'كلمة المرور يجب أن تتكون من 8 أحرف على الأقل'
+            : showErrors && controllers[index].text.trim().isEmpty && index != 2
+                ? 'هذا الحقل مطلوب'
+                : null;
+    if (obscure) {
+      return OwnerPasswordField(
         label: label,
         hint: hint,
         helperText: switch (index) {
           0 => 'اكتب الاسم كما يظهر في الهوية.',
           1 => 'أدخل رقم هاتفك اليمني.',
           2 => 'سنستخدمه لتسجيل الدخول والتواصل.',
-          3 => 'استخدم ٨ أحرف على الأقل.',
+          3 => 'استخدم 8 أحرف على الأقل.',
           _ => null,
         },
         controller: controllers[index],
-        keyboardType: type,
-        obscureText: obscure,
+        errorText: errorText,
         onChanged: (_) => setState(() {}),
-        errorText: showErrors && controllers[index].text.isEmpty && index != 2
-            ? 'هذا الحقل مطلوب'
-            : null,
       );
+    }
+    return CustomLabeledTextField(
+      label: label,
+      hint: hint,
+      helperText: switch (index) {
+        0 => 'اكتب الاسم كما يظهر في الهوية.',
+        1 => 'أدخل رقم هاتفك اليمني.',
+        2 => 'سنستخدمه لتسجيل الدخول والتواصل.',
+        _ => null,
+      },
+      controller: controllers[index],
+      keyboardType: type,
+      onChanged: (_) => setState(() {}),
+      errorText: errorText,
+    );
+  }
 }

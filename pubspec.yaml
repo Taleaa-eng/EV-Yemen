@@ -22,6 +22,16 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/customer_car_detail.jpeg
+    - assets/customer_station_detail.jpeg
+    - assets/dealer_profile/vehicle_1.jpeg
+    - assets/dealer_profile/vehicle_2.jpeg
+    - assets/dealer_profile/vehicle_4.jpeg
+    - assets/dealer_profile/vehicle_6.jpeg
+    - assets/dealer_profile/vehicle_7.jpeg
+    - assets/dealer_profile/figma_catalog_1.jpeg
+    - assets/dealer_profile/figma_catalog_2.jpeg
   fonts:
     - family: Cairo
       fonts:

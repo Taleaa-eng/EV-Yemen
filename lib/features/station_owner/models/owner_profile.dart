@@ -9,6 +9,7 @@ class OwnerProfile {
     required this.registrationNumber,
     this.latitude,
     this.longitude,
+    this.storeImagePath,
   });
 
   final String fullName;
@@ -20,6 +21,7 @@ class OwnerProfile {
   final String registrationNumber;
   final double? latitude;
   final double? longitude;
+  final String? storeImagePath;
 
   OwnerProfile copyWith({
     String? fullName,
@@ -31,6 +33,7 @@ class OwnerProfile {
     String? registrationNumber,
     double? latitude,
     double? longitude,
+    String? storeImagePath,
   }) =>
       OwnerProfile(
         fullName: fullName ?? this.fullName,
@@ -42,6 +45,7 @@ class OwnerProfile {
         registrationNumber: registrationNumber ?? this.registrationNumber,
         latitude: latitude ?? this.latitude,
         longitude: longitude ?? this.longitude,
+        storeImagePath: storeImagePath ?? this.storeImagePath,
       );
 
   Map<String, dynamic> toJson() => {
@@ -54,6 +58,7 @@ class OwnerProfile {
         'registrationNumber': registrationNumber,
         'latitude': latitude,
         'longitude': longitude,
+        'storeImagePath': storeImagePath,
       };
 
   factory OwnerProfile.fromJson(Map<String, dynamic> json) => OwnerProfile(
@@ -66,5 +71,6 @@ class OwnerProfile {
         registrationNumber: json['registrationNumber'] as String? ?? '',
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
+        storeImagePath: json['storeImagePath'] as String?,
       );
 }

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/services/active_role_session.dart';
+import '../../../../core/widgets/logout_confirmation_dialog.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../account_selection/account_type_selection_screen.dart';
 import '../../models/owner_notification_settings.dart';
 import '../../models/owner_station.dart';
 import '../../services/station_owner_local_store.dart';
 import '../../widgets/owner_widgets.dart';
-import '../auth/login_screen.dart';
 import '../notifications/notifications_screen.dart';
-import '../profile/logout_confirmation_screen.dart';
 import '../profile/notification_settings_screen.dart';
 import '../profile/profile_screen.dart';
 import '../profile/settings_screen.dart';
@@ -151,20 +152,18 @@ class _OwnerHomeState extends State<OwnerHome> {
         ),
       );
 
-  void _openLogout() => Navigator.push<void>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => LogoutConfirmationScreen(
-            onConfirm: () async {
-              await store.logout();
-              if (!mounted) return;
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => LoginScreen(store: store)),
-                (route) => false,
-              );
-            },
-          ),
-        ),
-      );
+  void _openLogout() => _confirmLogout();
+
+  Future<void> _confirmLogout() async {
+    final confirm = await showLogoutConfirmationDialog(context);
+    if (!confirm || !mounted) return;
+    await store.logout();
+    await ActiveRoleSessionStore.instance.clear();
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const AccountTypeSelectionScreen()),
+      (route) => false,
+    );
+  }
 }

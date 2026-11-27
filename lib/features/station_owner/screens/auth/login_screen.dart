@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../core/services/auth_validators.dart';
+import '../../../../core/services/active_role_session.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../widgets/owner_widgets.dart';
 import '../../services/station_owner_local_store.dart';
@@ -16,11 +18,20 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final email = TextEditingController();
   final password = TextEditingController();
-  bool submitted = false, obscure = true;
+  bool submitted = false;
   bool busy = false;
   bool invalidCredentials = false;
+  bool invalidIdentifier = false;
+  bool invalidPassword = false;
+  late final Future<void> _storeReady;
   StationOwnerLocalStore get store =>
       widget.store ?? StationOwnerLocalStore.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _storeReady = store.initialize();
+  }
 
   @override
   void dispose() {
@@ -59,31 +70,35 @@ class _LoginScreenState extends State<LoginScreen> {
                     submitted ? null : 'أدخل بريدك الإلكتروني أو رقم هاتفك.',
                 controller: email,
                 keyboardType: TextInputType.emailAddress,
-                onChanged: (_) => setState(() => invalidCredentials = false),
+                onChanged: (_) => setState(() {
+                      invalidCredentials = false;
+                      invalidIdentifier = false;
+                    }),
                 errorText: submitted && email.text.trim().isEmpty
                     ? 'أدخل بريدك الإلكتروني أو رقم هاتفك'
-                    : submitted && invalidCredentials
-                        ? 'بيانات الدخول غير صحيحة'
-                        : null),
+                    : submitted && invalidIdentifier
+                        ? 'أدخل بريداً إلكترونياً أو رقم هاتف صالحاً'
+                        : submitted && invalidCredentials
+                            ? 'بيانات الدخول غير صحيحة'
+                            : null),
             const SizedBox(height: 12),
-            CustomLabeledTextField(
+            OwnerPasswordField(
                 label: 'كلمة المرور',
                 hint: 'أدخل كلمة المرور',
                 helperText:
                     submitted ? null : 'أدخل كلمة المرور الخاصة بحسابك.',
                 controller: password,
-                obscureText: obscure,
-                onChanged: (_) => setState(() => invalidCredentials = false),
-                suffix: IconButton(
-                    onPressed: () => setState(() => obscure = !obscure),
-                    icon: Icon(obscure
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined)),
+                onChanged: (_) => setState(() {
+                      invalidCredentials = false;
+                      invalidPassword = false;
+                    }),
                 errorText: submitted && password.text.isEmpty
                     ? 'أدخل كلمة المرور'
-                    : submitted && invalidCredentials
-                        ? 'بيانات الدخول غير صحيحة'
-                        : null),
+                    : submitted && invalidPassword
+                        ? 'كلمة المرور يجب أن تتكون من 8 أحرف على الأقل'
+                        : submitted && invalidCredentials
+                            ? 'بيانات الدخول غير صحيحة'
+                            : null),
             const SizedBox(height: 16),
             OwnerButton(
                 label: 'إنشاء حساب جديد',
@@ -92,9 +107,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     context,
                     MaterialPageRoute(
                         builder: (_) => RegistrationScreen(store: store)))),
-            TextButton(
-                onPressed: () => _showStatusChoice(context),
-                child: const Text('متابعة حالة طلب سابق'))
           ]),
         ),
         bottomNavigationBar: OwnerStickyAction(
@@ -110,13 +122,40 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       submitted = true;
       invalidCredentials = false;
+      invalidIdentifier = false;
+      invalidPassword = false;
     });
-    if (email.text.trim().isEmpty || password.text.isEmpty) return;
+    final identifier = email.text.trim();
+    if (identifier.isEmpty || password.text.isEmpty) return;
+    final validIdentifier =
+        isValidEmail(identifier) || isValidYemenPhone(identifier);
+    final validPassword = isValidPassword(password.text);
+    if (!validIdentifier || !validPassword) {
+      setState(() {
+        invalidIdentifier = !validIdentifier;
+        invalidPassword = !validPassword;
+      });
+      return;
+    }
+    await _storeReady;
+    if (!mounted) return;
     setState(() => busy = true);
     final success = await store.login(email.text, password.text);
     if (!mounted) return;
     setState(() => busy = false);
+    if (success && store.currentAccount?.approved != true) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) =>
+                const StatusScreen(status: ApplicationStatus.pending)),
+      );
+      return;
+    }
     if (success) {
+      await ActiveRoleSessionStore.instance
+          .save(ActiveUserRole.stationOwner, authenticated: true);
+      if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => OwnerHome(store: store)),
@@ -130,32 +169,3 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 }
-
-void _showStatusChoice(BuildContext context) {
-  showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-          child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Text('حالة الطلب المسجّل', style: AppTextStyles.heading),
-                const SizedBox(height: 12),
-                for (final status in ApplicationStatus.values)
-                  ListTile(
-                      title: Text(_statusLabel(status),
-                          textAlign: TextAlign.right),
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => StatusScreen(status: status)));
-                      })
-              ]))));
-}
-
-String _statusLabel(ApplicationStatus status) => switch (status) {
-      ApplicationStatus.pending => 'قيد المراجعة',
-      ApplicationStatus.rejected => 'مرفوض',
-      ApplicationStatus.approved => 'تم القبول'
-    };

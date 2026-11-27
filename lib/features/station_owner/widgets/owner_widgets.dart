@@ -149,6 +149,55 @@ class _CustomLabeledTextFieldState extends State<CustomLabeledTextField> {
   }
 }
 
+class OwnerPasswordField extends StatefulWidget {
+  const OwnerPasswordField({
+    super.key,
+    required this.label,
+    this.hint,
+    this.helperText,
+    this.errorText,
+    this.controller,
+    this.enabled = true,
+    this.onChanged,
+  });
+
+  final String label;
+  final String? hint;
+  final String? helperText;
+  final String? errorText;
+  final TextEditingController? controller;
+  final bool enabled;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  State<OwnerPasswordField> createState() => _OwnerPasswordFieldState();
+}
+
+class _OwnerPasswordFieldState extends State<OwnerPasswordField> {
+  bool _obscure = true;
+
+  @override
+  Widget build(BuildContext context) => CustomLabeledTextField(
+        label: widget.label,
+        hint: widget.hint,
+        helperText: widget.helperText,
+        errorText: widget.errorText,
+        controller: widget.controller,
+        enabled: widget.enabled,
+        obscureText: _obscure,
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.left,
+        onChanged: widget.onChanged,
+        suffix: IconButton(
+          tooltip: _obscure ? 'إظهار كلمة المرور' : 'إخفاء كلمة المرور',
+          onPressed: () => setState(() => _obscure = !_obscure),
+          icon: Icon(_obscure
+              ? Icons.visibility_off_outlined
+              : Icons.visibility_outlined),
+        ),
+      );
+}
+
 class DocumentUploadTile extends StatelessWidget {
   const DocumentUploadTile(
       {super.key,
@@ -366,7 +415,7 @@ class OwnerCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   @override
-  Widget build(BuildContext context) => AppCard(child: child, padding: padding);
+  Widget build(BuildContext context) => AppCard(padding: padding, child: child);
 }
 
 class SectionTitle extends StatelessWidget {
